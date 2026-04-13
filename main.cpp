@@ -15,6 +15,8 @@
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <chrono>
+#include <cstring>
+#include <algorithm>
 
 HANDLE PHANDLE = nullptr;
 
@@ -30,6 +32,16 @@ typedef void (*origChangeWorkspace1)(void *, const PHLWORKSPACE &, bool, bool,
 typedef void (*origRenderMonitor)(void *, PHLMONITOR, bool);
 
 typedef void (*origCloseWindow)(void *, PHLWINDOW);
+
+// Resolve warning
+template <typename PMF>
+void *pmf_to_voidptr(PMF pmf)
+{
+  void *p = nullptr;
+  constexpr size_t copySize = sizeof(p) < sizeof(PMF) ? sizeof(p) : sizeof(PMF);
+  std::memcpy(&p, &pmf, copySize);
+  return p;
+}
 
 void hkCloseWindow(void *thisptr, PHLWINDOW window)
 {
@@ -80,23 +92,22 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle)
 
   g_pChangeWorkspaceHook1 = HyprlandAPI::createFunctionHook(
       PHANDLE,
-      (void *)static_cast<void (CMonitor::*)(const PHLWORKSPACE &, bool, bool,
-                                             bool)>(&CMonitor::changeWorkspace),
+      pmf_to_voidptr<void (CMonitor::*)(const PHLWORKSPACE &, bool, bool, bool)>(
+          &CMonitor::changeWorkspace),
       (void *)&hkChangeWorkspace1);
   g_pChangeWorkspaceHook1->hook();
 
   g_pRenderMonitorHook = HyprlandAPI::createFunctionHook(
       PHANDLE,
-      (void *)static_cast<void (CHyprRenderer::*)(PHLMONITOR, bool)>(
-          &CHyprRenderer::renderMonitor),
+      pmf_to_voidptr<void (CHyprRenderer::*)(PHLMONITOR, bool)>(&CHyprRenderer::renderMonitor),
       (void *)&hkRenderMonitor);
   g_pRenderMonitorHook->hook();
 
   g_pCloseWindowHook = HyprlandAPI::createFunctionHook(
-      PHANDLE, (void *)&CCompositor::closeWindow, (void *)&hkCloseWindow);
+      PHANDLE, pmf_to_voidptr<void (CCompositor::*)(PHLWINDOW)>(&CCompositor::closeWindow), (void *)&hkCloseWindow);
   g_pCloseWindowHook->hook();
   HyprlandAPI::addNotification(PHANDLE, "[cursor-fix] loaded!",
-                               CHyprColor{0.2, 1.0, 0.2, 1.0}, 3000);
+                               CHyprColor{0.2f, 1.0f, 0.2f, 1.0f}, 3000);
   return {"cursor-fix", "<3 hypr", "gen", "1.0"};
 }
 
