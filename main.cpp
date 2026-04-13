@@ -26,6 +26,7 @@ static CFunctionHook *g_pCloseWindowHook = nullptr;
 
 static int g_iFramesUntilSimulate = -1;
 static const int FRAMES_TO_WAIT = 5;
+static bool g_time_update_enabled = false;
 
 typedef void (*origChangeWorkspace1)(void *, const PHLWORKSPACE &, bool, bool,
                                      bool);
@@ -54,16 +55,17 @@ void hkRenderMonitor(void *thisptr, PHLMONITOR pMonitor, bool commit)
 {
   (*(origRenderMonitor)g_pRenderMonitorHook->m_original)(thisptr, pMonitor,
                                                          commit);
-  // "Fix" it once and for all
-  // Lightweight periodic action: ~500ms-ish
-  static unsigned char frameTick = 0;
-  if (++frameTick >= 30)
-  { // ~30 frames @60Hz ≈ 500ms
-    frameTick = 0;
-    static const std::string LEFT_PTR = "left_ptr";
-    // Same frame so never visually changes if needs to be something other than left_ptr, otherwise resets it any situation it'd need it
-    g_pHyprRenderer->setCursorFromName(LEFT_PTR);
-    g_pInputManager->simulateMouseMovement();
+  if (g_time_update_enabled)
+  {
+    static unsigned char frameTick = 0;
+    if (++frameTick >= 30)
+    { // ~30 frames @60Hz ≈ 500ms
+      frameTick = 0;
+      static const std::string LEFT_PTR = "left_ptr";
+      // Same frame so never visually changes if needs to be something other than left_ptr, otherwise resets it
+      g_pHyprRenderer->setCursorFromName(LEFT_PTR);
+      g_pInputManager->simulateMouseMovement();
+    }
   }
   if (g_iFramesUntilSimulate < 0)
     return;
