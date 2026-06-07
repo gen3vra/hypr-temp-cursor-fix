@@ -32,7 +32,7 @@ typedef void (*origChangeWorkspace1)(void *, const PHLWORKSPACE &, bool, bool,
                                      bool);
 typedef void (*origRenderMonitor)(void *, PHLMONITOR, bool);
 
-typedef void (*origCloseWindow)(void *, PHLWINDOW);
+typedef void (*origCloseWindow)(void *);
 
 // Resolve warning
 template <typename PMF>
@@ -44,9 +44,9 @@ void *pmf_to_voidptr(PMF pmf)
   return p;
 }
 
-void hkCloseWindow(void *thisptr, PHLWINDOW window)
+void hkCloseWindow(void *thisptr)
 {
-  (*(origCloseWindow)g_pCloseWindowHook->m_original)(thisptr, window);
+  (*(origCloseWindow)g_pCloseWindowHook->m_original)(thisptr);
   // Hack, would be better if it knew it was on desktop and set this
   g_pHyprRenderer->setCursorFromName("left_ptr");
 }
@@ -101,12 +101,12 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle)
 
   g_pRenderMonitorHook = HyprlandAPI::createFunctionHook(
       PHANDLE,
-      pmf_to_voidptr<void (CHyprRenderer::*)(PHLMONITOR, bool)>(&CHyprRenderer::renderMonitor),
+      pmf_to_voidptr<void (Render::IHyprRenderer::*)(PHLMONITOR, bool)>(&Render::IHyprRenderer::renderMonitor),
       (void *)&hkRenderMonitor);
   g_pRenderMonitorHook->hook();
 
   g_pCloseWindowHook = HyprlandAPI::createFunctionHook(
-      PHANDLE, pmf_to_voidptr<void (CCompositor::*)(PHLWINDOW)>(&CCompositor::closeWindow), (void *)&hkCloseWindow);
+      PHANDLE, pmf_to_voidptr<void (Desktop::View::CWindow::*)()>(&Desktop::View::CWindow::onUnmap), (void *)&hkCloseWindow);
   g_pCloseWindowHook->hook();
   HyprlandAPI::addNotification(PHANDLE, "[cursor-fix] loaded!",
                                CHyprColor{0.2f, 1.0f, 0.2f, 1.0f}, 3000);
