@@ -7,6 +7,7 @@
 //   Scroll → no-op
 //   Move mouse 1px → scroll works
 // - Cursor shape doesn't change/reset on workspace switch if onto empty desktop space
+// - Window launching under a stationary cursor gets no scroll/hover until the mouse moves
 //   The issue is that the compositor is not re-evaluating the surface mouse is under after these situations
 // We fix all of these by simulating mouse movement or setting cursor manually after these events, and top it off with a periodic hacky "fix"
 #include <hyprland/src/Compositor.hpp>
@@ -26,7 +27,6 @@ static CFunctionHook *g_pCloseWindowHook = nullptr;
 
 static int g_iFramesUntilSimulate = -1;
 static const int FRAMES_TO_WAIT = 5;
-static bool g_time_update_enabled = false;
 
 typedef void (*origChangeWorkspace1)(void *, const PHLWORKSPACE &, bool, bool,
                                      bool);
@@ -55,17 +55,13 @@ void hkRenderMonitor(void *thisptr, PHLMONITOR pMonitor, bool commit)
 {
   (*(origRenderMonitor)g_pRenderMonitorHook->m_original)(thisptr, pMonitor,
                                                          commit);
-  if (g_time_update_enabled)
+  // A window launching under a stationary cursor is never re-evaluated (scroll no-ops until the mouse moves)
+  static auto lastPeriodicSimulate = std::chrono::steady_clock::now();
+  const auto now = std::chrono::steady_clock::now();
+  if (now - lastPeriodicSimulate >= std::chrono::milliseconds(500))
   {
-    static unsigned char frameTick = 0;
-    if (++frameTick >= 30)
-    { // ~30 frames @60Hz ≈ 500ms
-      frameTick = 0;
-      static const std::string LEFT_PTR = "left_ptr";
-      // Same frame so never visually changes if needs to be something other than left_ptr, otherwise resets it
-      g_pHyprRenderer->setCursorFromName(LEFT_PTR);
-      g_pInputManager->simulateMouseMovement();
-    }
+    lastPeriodicSimulate = now;
+    g_pInputManager->simulateMouseMovement();
   }
   if (g_iFramesUntilSimulate < 0)
     return;
